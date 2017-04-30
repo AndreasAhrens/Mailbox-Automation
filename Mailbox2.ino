@@ -34,6 +34,8 @@ int inside = D1;
 const int hatchPin = D3;
 // The pin for magnet switch for door
 const int doorPin = D4;
+// Assumed the D5 pin to be the temperature sensor (input pin)
+const int tempSensorInPin = D5;
 
 unsigned long previousMillis = 0;
 unsigned long previousMillisDoor = 0;
@@ -42,12 +44,14 @@ const long interval = 100;
 const long closedInterval = 100; 
 
 void setup() {
-  pinMode(outside, OUTPUT);     // Initialize the outside pin as an output
-  pinMode(inside, OUTPUT);      // Initialize the inside pin as input
-  pinMode(hatchPin, INPUT);     // Initialize the hatchpin as input
-  pinMode(doorPin, INPUT);      // Oh come on, you guessed it by now
-  digitalWrite(hatchPin, HIGH); // Set initial status for hatch as high
-  digitalWrite(doorPin, HIGH);  // Set initial status for door pin as high
+  pinMode(outside, OUTPUT);            // Initialize the outside pin as an output
+  pinMode(inside, OUTPUT);             // Initialize the inside pin as input
+  pinMode(hatchPin, INPUT);            // Initialize the hatchpin as input
+  pinMode(doorPin, INPUT);             // Oh come on, you guessed it by now
+  pinMode(tempSensorInPin, INPUT);     // Oh yes I did! Initialize the temperature sensor as input
+  digitalWrite(hatchPin, HIGH);        // Set initial status for hatch as high
+  digitalWrite(doorPin, HIGH);         // Set initial status for door pin as high
+  digitalWrite(tempSensorInPin, HIGH); // Set initial status for temperature sensor as high
   Serial.begin(115200);
   WiFiManager wifiManager;                    // This sets up WiFiManager, connecting to last network
   wifiManager.autoConnect("AutoConnectAP");   // And if that doesn't work, set up AutoConnectAP for config
@@ -86,6 +90,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
     mqttclient.publish("/outside/mailbox/inside/", "OFF");  // Notify MQTT
   }
 
+  mqttclient.publish("/outside/mailbox/temperature/", "42.42"); // Report initial dummy value to the MQTT as temp reading.
 }
 
 
@@ -104,6 +109,13 @@ void reconnect() {
       // Same for inside light
       mqttclient.publish("/outside/mailbox/inside/", "OFF");
       mqttclient.subscribe("/outside/mailbox/inside/set");
+
+      /* A-a-and same goes for the temp sensor
+       * Report a dummy value as a temp reading. The actual temp reading
+       * will occur in our main loop.
+       */
+      mqttclient.publish("/outside/mailbox/temperature/", "42.42");
+      mqttclient.subscribe("/outside/mailbox/temperature/set");
     } else {
       Serial.print("failed, rc=");
       Serial.print(mqttclient.state());
@@ -176,4 +188,11 @@ void loop() {
   // TODO - add temperatur sensor and humitidy sensor, send data via MQTT.
   // Because everybody needs to know what the temperature is in their mailbox.
 
+  // Temperature reading
+  const float temp = float(digitalRead(tempSensorInPin)); // interpret input bits as float
+  String temp_str  = String(temp);                        // convert the temp reading to a string
+
+  temp_str.toCharArray(temp_str, temp_str.length() + 1);  // packaging up the data in order to publish to MQTT
+  Serial.println(temp_str);                               // for troubleshooting
+  mqttclient.publish("/outside/mailbox/temperature/", temp_str);
 }
